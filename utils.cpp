@@ -1,4 +1,5 @@
 #include "utils.h"
+#include <math.h>
 #include <Adafruit_NeoMatrix.h>
 
 uint16_t ColorHSV(uint16_t hue, uint8_t sat, uint8_t val) {
@@ -119,4 +120,131 @@ uint16_t interpolateColors565(uint16_t col1, uint16_t col2, float frac) {
       (uint8_t)((b2 - b1)*frac + b1)
     )  // Converts back to RGB565
   );
+}
+
+void fadeToBlack(Adafruit_NeoMatrix &matrix, float fade_factor) {
+  uint32_t color;
+  uint8_t r, g, b;
+  for (int i = 0; i < matrix.width() * matrix.height(); i++) {  // Fade to black (to create trails)
+    color = matrix.getPixelColor(i);
+    r = ((color >> 16) & 0x0000ff);
+    g = ((color >> 8) & 0x0000ff);
+    b = color & 0x0000ff;
+    r = round(r * fade_factor);
+    g = round(g * fade_factor);
+    b = round(b * fade_factor);
+    r = r+g+b > 4 ? r : 0;
+    g = r+g+b > 4 ? g : 0;
+    b = r+g+b > 4 ? b : 0;
+    matrix.setPixelColor(i, r, g, b);
+  }
+}
+
+GaussianBlur::GaussianBlur(float sigma) {
+  double min_weight = 10000.0f;
+  float kernel[this->kernel_h][this->kernel_w] = {0, 0, 0, 0 ,0, 0, 0, 0, 0};
+  for (int i = 0; i < this->kernel_h; i++) {
+    for (int j = 0; j < this->kernel_w; j++) {
+      kernel[i][j] = exp(-((i - 1)*(i - 1)+(j - 1)*(j - 1))/(2*sigma*sigma))/(2*3.14159*sigma*sigma);
+      if (kernel[i][j] < min_weight)
+        min_weight = kernel[i][j];
+    }
+  }
+
+  for (int i = 0; i < this->kernel_h; i++) {
+    for (int j = 0; j < this->kernel_w; j++) {
+      this->kernel[i][j] = (uint)(kernel[i][j] / min_weight + 0.01f); // Adding 0.1 to make sure that the truncation is robust to floating point errors
+      this->kernel_sum += this->kernel[i][j];
+    }
+  }
+}
+
+void GaussianBlur::blur(Adafruit_NeoMatrix &matrix) {
+  uint32_t col_1, col_2, col_3, col_4, col_5, col_6, col_7, col_8, col_9;
+  uint8_t r1, r2, r3, r4, r5, r6, r7, r8, r9;
+  uint8_t g1, g2, g3, g4, g5, g6, g7, g8, g9;
+  uint8_t b1, b2, b3, b4, b5, b6, b7, b8, b9;
+  uint32_t color;
+  uint8_t r, g, b;
+  uint8_t w = matrix.width();
+  uint8_t h = matrix.height();
+  uint32_t colors[w*h]; memset(colors, 0, sizeof(colors));
+  uint16_t idx, idx_neigh_top, idx_neigh_bot;
+  for (int y = 0; y < matrix.height(); y++) {
+    for (int x = 0; x < matrix.width(); x++) {
+      if (y%2 == 0) {  // Weird indexing, but that's because the WS2812b 16x16 matrix is arranged in zigzag
+        idx = y*h + x;
+        idx_neigh_top = (y-1)*h + (w - 1 - x);
+        idx_neigh_bot = (y+1)*h + (w - 1 - x);
+      }
+      else {
+        idx = y*h + (w - 1 - x);
+        idx_neigh_top = (y-1)*h + x;
+        idx_neigh_bot = (y+1)*h + x;
+      }
+
+      // Apparently I don't need to accound for index errors to to the edges. Not sure why. Maybe the NeoMatrix library properly safeguards ?
+      col_1 = matrix.getPixelColor(idx_neigh_top - 1); r1 = (col_1 & 0xff0000) >> 16; g1 = (col_1 & 0x00ff00) >> 8; b1 = col_1 & 0x0000ff;
+      col_2 = matrix.getPixelColor(idx_neigh_top);     r2 = (col_2 & 0xff0000) >> 16; g2 = (col_2 & 0x00ff00) >> 8; b2 = col_2 & 0x0000ff;
+      col_3 = matrix.getPixelColor(idx_neigh_top + 1); r3 = (col_3 & 0xff0000) >> 16; g3 = (col_3 & 0x00ff00) >> 8; b3 = col_3 & 0x0000ff;
+      col_4 = matrix.getPixelColor(idx - 1);     r4 = (col_4 & 0xff0000) >> 16; g4 = (col_4 & 0x00ff00) >> 8; b4 = col_4 & 0x0000ff;
+      col_5 = matrix.getPixelColor(idx);         r5 = (col_5 & 0xff0000) >> 16; g5 = (col_5 & 0x00ff00) >> 8; b5 = col_5 & 0x0000ff;
+      col_6 = matrix.getPixelColor(idx + 1);     r6 = (col_6 & 0xff0000) >> 16; g6 = (col_6 & 0x00ff00) >> 8; b6 = col_6 & 0x0000ff;
+      col_7 = matrix.getPixelColor(idx_neigh_bot - 1); r7 = (col_7 & 0xff0000) >> 16; g7 = (col_7 & 0x00ff00) >> 8; b7 = col_7 & 0x0000ff;
+      col_8 = matrix.getPixelColor(idx_neigh_bot);     r8 = (col_8 & 0xff0000) >> 16; g8 = (col_8 & 0x00ff00) >> 8; b8 = col_8 & 0x0000ff;
+      col_9 = matrix.getPixelColor(idx_neigh_bot + 1); r9 = (col_9 & 0xff0000) >> 16; g9 = (col_9 & 0x00ff00) >> 8; b9 = col_9 & 0x0000ff;
+
+      r = (
+        this->k(0, 0)*r1 + this->k(0, 1)*r2 + this->k(0, 2)*r3
+        + this->k(1, 0)*r4 + this->k(1, 1)*r5 + this->k(1, 2)*r6
+        + this->k(2, 0)*r7 + this->k(2, 1)*r8 + this->k(2, 2)*r9
+        ) / this->kernel_sum;
+      g = (
+        this->k(0, 0)*g1 + this->k(0, 1)*g2 + this->k(0, 2)*g3
+        + this->k(1, 0)*g4 + this->k(1, 1)*g5 + this->k(1, 2)*g6
+        + this->k(2, 0)*g7 + this->k(2, 1)*g8 + this->k(2, 2)*g9
+        ) / this->kernel_sum;
+      b = (
+        this->k(0, 0)*b1 + this->k(0, 1)*b2 + this->k(0, 2)*b3
+        + this->k(1, 0)*b4 + this->k(1, 1)*b5 + this->k(1, 2)*b6
+        + this->k(2, 0)*b7 + this->k(2, 1)*b8 + this->k(2, 2)*b9
+        ) / this->kernel_sum;
+      color = (r << 16 | g << 8 | b);
+      colors[idx] = color;
+    }
+  }
+
+  for (int y = 0; y < matrix.height(); y++) {
+    for (int x = 0; x < matrix.width(); x++) {
+      if (y%2 == 0)
+        idx = y*h + x;
+      else
+        idx = y*h + (w - 1 - x);
+      matrix.setPixelColor(idx, colors[idx]);
+    }
+  }
+}
+
+void drawLine(Adafruit_NeoMatrix &matrix, float x1, float y1, float x2, float y2, uint16_t hue, uint8_t sat, uint8_t val, bool grad, uint8_t resolution) {
+  float dx, dy, rate;
+  uint8_t value;
+  uint16_t color;
+  float steps;
+
+  if (resolution == 0) {
+    float xsteps = abs(x2 - x1) + 1;
+    float ysteps = abs(y2 - y1) + 1;
+    steps = max(xsteps, ysteps);
+  } else {
+    steps = resolution;
+  }
+
+  for (int j = 1; j <= steps; j++) {
+    rate = j / steps;
+    dx = x1 + rate * (x2 - x1);
+    dy = y1 + rate * (y2 - y1);
+    value = grad ? (uint8_t)(val*rate) : val;
+    color = ColorHSV(hue, sat, value);
+    matrix.drawPixel((uint8_t)dx, (uint8_t)dy, color);
+  }
 }
