@@ -378,26 +378,11 @@ Vortex Effect
 ###################################################################################################
 */
 void VortexProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
-  float fade_factor = 0.75f;
-  uint32_t color;
-  uint8_t r, g, b;
-  for (int i = 0; i < matrix.width() * matrix.height(); i++) {  // Fade to black (to create trails)
-    color = matrix.getPixelColor(i);
-    r = ((color >> 16) & 0x0000ff);
-    g = ((color >> 8) & 0x0000ff);
-    b = color & 0x0000ff;
-    r = round(r * fade_factor);
-    g = round(g * fade_factor);
-    b = round(b * fade_factor);
-    r = r+g+b > 4 ? r : 0;
-    g = r+g+b > 4 ? g : 0;
-    b = r+g+b > 4 ? b : 0;
-    matrix.setPixelColor(i, r, g, b);
-  }
+  fadeToBlack(matrix, 0.6f);
 
   float t = time * this->speed;
   uint min_x, max_x, min_y, max_y, x, y;
-  uint max_i = 2;
+  uint max_i = 3;
   uint max_j = 3;
   for (int i = 0; i < max_i; i++) {
     for (int j = 0; j < max_j; j++) {
@@ -410,4 +395,224 @@ void VortexProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
       matrix.drawPixel(x, y, ColorHSV((fmod(t / 10.0f, 1.0f) + (i + j)/(float)(max_i + max_j)) * 65536, 255, 255));
     }
   }
+  this->gaussian_blur.blur(matrix);
+}
+
+
+void RotatingKaleidoscopeProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  uint8_t dim = matrix.width()/2 + 2;
+  float x, y;
+  uint16_t hue;
+  uint8_t cx = matrix.width()/2;
+  uint8_t cy = matrix.height()/2;
+  for (float i = 1; i < dim; i += 0.25) {
+    float angle = this->speed * time * (dim - i);
+    x = (matrix.width()/2.0f) + sin(angle) * i;
+    y = (matrix.height()/2.0f) + cos(angle) * i;
+    hue = (uint16_t)(((x-cx)*(x-cx) + (y-cy)*(y-cy)) * 500 + 100*time * this->speed * 10) % 65535;
+    matrix.drawPixel((uint8_t)x, (uint8_t)y, ColorHSV(hue, 255, 255));
+  }
+  this->gaussian_blur.blur(matrix);
+}
+
+
+OctopusProgram::OctopusProgram(float speed, int height, int width) : WS2812MatrixProgram(speed) {
+  const uint8_t C_X = width / 2;
+  const uint8_t C_Y = height / 2;
+  const uint8_t MAPP = 255 / max(height, width);
+  for (int x = 0; x < width; x++) {
+    for (int y = 0; y < height; y++) {
+      this->r_map_angle[x][y] = atan2(y-C_Y, x-C_X);
+      this->r_map_radius[x][y] = pow((x-C_X)*(x-C_X) + (y-C_Y)*(y-C_Y), 0.5f); //thanks Sutaburosu
+    }
+  }
+}
+
+void OctopusProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  float angle, radius, arms;
+  for (int x = 0; x < matrix.width(); x++) {
+    for (int y = 0; y < matrix.height(); y++) {
+      angle = this->r_map_angle[x][y];
+      radius = this->r_map_radius[x][y];
+      arms = 0.5 * (sin(0.01f*time*this->speed) + 1) * (this->arms_max - this->arms_min) + this->arms_min;
+      matrix.drawPixel(
+        x,
+        y,
+        ColorHSV(
+          (uint16_t)fmod(3000*radius + 1000*time*this->speed, 65536),
+          255,
+          (uint8_t)(127*(sin((sin((angle * 4 - radius) / 4 + time*this->speed) + 1) + 0.5 * radius - time*this->speed + angle * arms) + 1))
+        )
+      );
+    }
+  }
+}
+
+
+float naive_lerp(float a, float b, float t)
+{
+    return a + t * (b - a);
+}
+
+void BurstsProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  fadeToBlack(matrix, 0.25f);
+
+  uint16_t color;
+  uint16_t hue;
+  float x1, y1, x2, y2;
+  float xsteps, ysteps, steps;
+  float rate;
+  float dx, dy;
+  uint16_t rand_n = rand() % 200;
+  if (rand_n == 0) {
+    this->num_lines++;
+    this->num_lines = min(this->num_lines, this->max_lines);
+  } else if (rand_n == 1) {
+    this->num_lines--;
+    this->num_lines = max(this->num_lines, this->min_lines);
+  }
+
+  for (int i = 0; i < this->num_lines; i++) {
+    x1 = 0.5f * (sin(12 + 1.0*time * this->speed) + 1) * matrix.width();
+    x2 = 0.5f * (sin(10 + 1.1*time * this->speed) + 1) * matrix.width();
+    y1 = 0.5f * (sin(25 + 1.2*time * this->speed + i * 24) + 1) * matrix.height();
+    y2 = 0.5f * (sin(20 + 1.3*time * this->speed + i * 48 + 64) + 1) * matrix.height();
+
+    hue = (uint16_t)(fmod(1.0f * i / this->num_lines + 0.1f * time * this->speed, 1.0f) * 65535);
+    drawLine(matrix, x1, x2, y1, y2, hue, 255, 255, true, 0);
+    matrix.drawPixel(y1, y2, ColorHSV(0, 0, 255));  // Drawing a white dot at the tip of each line
+  }
+  this->gaussian_blur.blur(matrix);
+}
+
+
+void LissajousProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  //matrix.fill(0);
+  uint16_t color;
+  float phase = time * this->speed;
+  float xlocn, ylocn;
+  for (int i = 0; i < 256; i++) {
+    xlocn = sin(phase/2 + 1 * i);
+    ylocn = sin(phase/2 + 2 * i);
+
+    xlocn = (xlocn + 1) * matrix.width() / 2.0f;
+    ylocn = (ylocn + 1) * matrix.height() / 2.0f;
+
+    color = ColorHSV((uint16_t)(100 * time * this->speed + i * 10), 255, 255);
+    color = ColorHSV((uint16_t)(100 * time * this->speed), 255, 255);
+    matrix.drawPixel((uint8_t)ylocn, (uint8_t)xlocn, color);
+  }
+}
+
+
+void DnaSpiralProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  matrix.fill(0);
+  uint16_t color, hue;
+  uint8_t x1, x2;
+  const uint8_t freq = 6;
+  float steps, rate, dx;
+  for (int i = 0; i < matrix.height(); i++) {
+    x1 = (matrix.width() / 2) * 0.5f * ((sin(time * this->speed + i * freq) + 1) + sin(0.37f * time * this->speed + i * freq + 128) + 1);
+    x2 = (matrix.width() / 2) * 0.5f * ((sin(time * this->speed + i * freq + 128) + 1) + sin(0.37f * time * this->speed + i * freq + 128 + 64) + 1);
+
+    hue = (uint16_t)(-i * 2048 + 4096 * time * this->speed);
+    drawLine(matrix, x1, i, x2, i, hue, 255, 255, true, abs(x2 - x1) + 1);
+
+    matrix.drawPixel(x1, i, 0x8430);
+    matrix.drawPixel(x2, i, 0xffff);
+  }
+}
+
+
+void TetrahedronProgram::Point::rotateX(float x, float y, float z, float a) {
+  this->x = x;
+  this->y = y * cos(a) - z * sin(a);
+  this->z = y * sin(a) + z * cos(a);
+}
+void TetrahedronProgram::Point::rotateY(float x, float y, float z, float a) {
+  this->x = x * cos(a) + z * sin(a);
+  this->y = y;
+  this->z = x * -sin(a) + z * cos(a);
+}
+void TetrahedronProgram::Point::rotateZ(float x, float y, float z, float a) {
+  this->x = x * cos(a) - y * sin(a);
+  this->y = x * sin(a) + y * cos(a);
+  this->z = z;
+}
+
+void TetrahedronProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  float distance = 1.5;
+  float z, projected_x, projected_y;
+  float angle_x = 3.14159 * (0.5f * SimplexNoise::noise(time * this->speed * 0.20f) + 0) + 1.00 * time * this->speed;
+  float angle_y = 3.14159 * (0.5f * SimplexNoise::noise(time * this->speed * 0.25f) + 0) + 1.05 * time * this->speed;
+  float angle_z = 3.14159 * (0.5f * SimplexNoise::noise(time * this->speed * 0.30f) + 0) + 1.10 * time * this->speed;
+  for (uint8_t i = 0; i < 4; i++) {
+    this->points[i].rotateX(this->points[i].x0, this->points[i].y0, this->points[i].z0, angle_x);
+    this->points[i].rotateY(this->points[i].x, this->points[i].y, this->points[i].z, angle_y);
+    this->points[i].rotateZ(this->points[i].x, this->points[i].y, this->points[i].z, angle_z);
+
+    z = 1 / (distance - this->points[i].z);
+    projected_x = z * this->points[i].x;
+    projected_y = z * this->points[i].y;
+
+    // Scaling up the tetrahedron to fit the matrix. Because up to this point, we've worked with a tetrahedron centered on (0, 0, 0) scaled to the unit sphere.
+    projected_x *= matrix.width(); 
+    projected_y *= matrix.height();
+
+    // Moving the tetrahedron's center to the center of the matrix.
+    projected_x += matrix.width() / 2;
+    projected_y += matrix.height() / 2;
+
+    // Now we store the projected coordinates into the Points' coordinates, just so we can reuse those for the drawing functions down below.
+    this->points[i].x = (uint8_t)projected_x;
+    this->points[i].y = (uint8_t)projected_y;
+  }
+
+  matrix.fill(0);
+
+  // Drawing lines between the points
+  uint16_t hue = uint16_t(fmod(0.025 * time * this->speed, 1.0) * 65536);
+  drawLine(matrix, this->points[0].x, this->points[0].y, this->points[1].x, this->points[1].y, hue, 255, 128, false, 0);
+  drawLine(matrix, this->points[0].x, this->points[0].y, this->points[2].x, this->points[2].y, hue + 5000, 255, 128, false, 0);
+  drawLine(matrix, this->points[0].x, this->points[0].y, this->points[3].x, this->points[3].y, hue + 10000, 255, 128, false, 0);
+  drawLine(matrix, this->points[1].x, this->points[1].y, this->points[2].x, this->points[2].y, hue + 15000, 255, 128, false, 0);
+  drawLine(matrix, this->points[1].x, this->points[1].y, this->points[3].x, this->points[3].y, hue + 20000, 255, 128, false, 0);
+  drawLine(matrix, this->points[2].x, this->points[2].y, this->points[3].x, this->points[3].y, hue + 25000, 255, 128, false, 0);
+
+  this->gaussian_blur.blur(matrix);
+
+  for (uint8_t i = 0; i < 4; i++) {
+    matrix.drawPixel((uint8_t)this->points[i].x, (uint8_t)this->points[i].y, 0xffff);
+  }
+}
+
+
+void StretchyTetrahedronProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  matrix.fill(0);
+
+  uint8_t x1 = (uint8_t)(0.5f * (sin(18 + 1.0*time * this->speed) + 1) * matrix.width());
+  uint8_t x2 = (uint8_t)(0.5f * (sin(23 + 1.1*time * this->speed) + 1) * matrix.width());
+  uint8_t x3 = (uint8_t)(0.5f * (sin(27 + 1.2*time * this->speed) + 1) * matrix.width());
+  uint8_t x4 = (uint8_t)(0.5f * (sin(31 + 1.3*time * this->speed) + 1) * matrix.width());
+
+  uint8_t y1 = (uint8_t)(0.5f * (sin(20 + 1.00*time * this->speed) + 1) * matrix.height());
+  uint8_t y2 = (uint8_t)(0.5f * (sin(26 + 1.05*time * this->speed) + 1) * matrix.height());
+  uint8_t y3 = (uint8_t)(0.5f * (sin(15 + 1.10*time * this->speed) + 1) * matrix.height());
+  uint8_t y4 = (uint8_t)(0.5f * (sin(27 + 1.15*time * this->speed) + 1) * matrix.height());
+
+  uint16_t hue = uint16_t(fmod(0.025 * time * this->speed, 1.0) * 65536);
+
+  drawLine(matrix, x1, y1, x2, y2, hue, 255, 255, false, 0);
+  drawLine(matrix, x1, y1, x3, y3, hue, 255, 255, false, 0);
+  drawLine(matrix, x1, y1, x4, y4, hue, 255, 255, false, 0);
+  drawLine(matrix, x2, y2, x3, y3, hue, 255, 255, false, 0);
+  drawLine(matrix, x2, y2, x4, y4, hue, 255, 255, false, 0);
+  drawLine(matrix, x3, y3, x4, y4, hue, 255, 255, false, 0);
+
+  this->gaussian_blur.blur(matrix);
+
+  matrix.drawPixel(x1, y1, 0xffff);
+  matrix.drawPixel(x2, y2, 0xffff);
+  matrix.drawPixel(x3, y3, 0xffff);
+  matrix.drawPixel(x4, y4, 0xffff);
 }
