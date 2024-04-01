@@ -234,10 +234,95 @@ class MatrixEffectProgram: public WS2812MatrixProgram {
 
 
 class VortexProgram: public WS2812MatrixProgram {
+  private:
+    GaussianBlur gaussian_blur = GaussianBlur(0.75f);
   public:
     VortexProgram(float speed) : WS2812MatrixProgram(speed) {};
     void iterate(Adafruit_NeoMatrix &matrix, float time);
 };
 
+
+class RotatingKaleidoscopeProgram: public WS2812MatrixProgram {
+  private:
+    GaussianBlur gaussian_blur = GaussianBlur(0.3f);
+  public:
+    RotatingKaleidoscopeProgram(float speed) : WS2812MatrixProgram(speed) {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
+
+class OctopusProgram: public WS2812MatrixProgram {  // Taken from https://editor.soulmatelights.com/gallery/671-octopus
+  private:
+    GaussianBlur gaussian_blur = GaussianBlur(0.5f);
+    float r_map_angle[16][16];
+    float r_map_radius[16][16];
+    uint8_t arms_min = 1;
+    uint8_t arms_max = 5;
+  public:
+    OctopusProgram(float speed, int height, int width);
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
+
+class BurstsProgram: public WS2812MatrixProgram {  // Taken from https://github.com/Aircoookie/WLED/blob/main/wled00/FX.cpp#L4724
+  private:
+    uint8_t num_lines = 10;
+    uint8_t min_lines = 5;
+    uint8_t max_lines = 15;
+    GaussianBlur gaussian_blur = GaussianBlur(0.45f);
+  public:
+    BurstsProgram(float speed) : WS2812MatrixProgram(speed) {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
+
+class LissajousProgram: public WS2812MatrixProgram {
+  private:
+    //GaussianBlur gaussian_blur = GaussianBlur(0.3f);
+  public:
+    LissajousProgram(float speed) : WS2812MatrixProgram(speed) {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
+
+class DnaSpiralProgram: public WS2812MatrixProgram {
+  public:
+    DnaSpiralProgram(float speed) : WS2812MatrixProgram(speed) {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
+
+class TetrahedronProgram: public WS2812MatrixProgram {
+  private:
+    class Point {
+      public:
+          float x0, y0, z0;
+          float x, y, z;
+          Point(float x0, float y0, float z0) : x0(x0), y0(y0), z0(z0), x(x0), y(y0), z(z0) {};
+          void rotateX(float x, float y, float z, float a);
+          void rotateY(float x, float y, float z, float a);
+          void rotateZ(float x, float y, float z, float a);
+      };
+    Point points[4] = {
+      Point(0,0, sqrt(6)/4),
+      Point(sqrt(3)/3, 0, -sqrt(6)/12),
+      Point(-sqrt(3)/6, 0.5, -sqrt(6)/12),
+      Point(-sqrt(3)/6, -0.5, -sqrt(6)/12)
+      };
+    GaussianBlur gaussian_blur = GaussianBlur(0.45f);
+  public:
+    TetrahedronProgram(float speed) : WS2812MatrixProgram(speed) {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
+
+
+class StretchyTetrahedronProgram: public WS2812MatrixProgram {
+  private:
+    GaussianBlur gaussian_blur = GaussianBlur(0.35f);
+  public:
+    StretchyTetrahedronProgram(float speed) : WS2812MatrixProgram(speed) {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
 
 #endif
