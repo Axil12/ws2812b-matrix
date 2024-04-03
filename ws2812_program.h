@@ -296,20 +296,32 @@ class TetrahedronProgram: public WS2812MatrixProgram {
   private:
     class Point {
       public:
+          uint8_t id;
           float x0, y0, z0;
           float x, y, z;
-          Point(float x0, float y0, float z0) : x0(x0), y0(y0), z0(z0), x(x0), y(y0), z(z0) {};
+          Point(float x0, float y0, float z0, uint8_t id) : x0(x0), y0(y0), z0(z0), x(x0), y(y0), z(z0), id(id) {};
           void rotateX(float x, float y, float z, float a);
           void rotateY(float x, float y, float z, float a);
           void rotateZ(float x, float y, float z, float a);
       };
     Point points[4] = {
-      Point(0,0, sqrt(6)/4),
-      Point(sqrt(3)/3, 0, -sqrt(6)/12),
-      Point(-sqrt(3)/6, 0.5, -sqrt(6)/12),
-      Point(-sqrt(3)/6, -0.5, -sqrt(6)/12)
+      Point(1, 1, 1, 0),
+      Point(1, -1, -1, 1),
+      Point(-1, -1, 1, 2),
+      Point(-1, 1, -1, 3)
       };
+    const float camera_distance = 20.0f;
+    const float tetrahedron_scale = 5.4f;
     GaussianBlur gaussian_blur = GaussianBlur(0.45f);
+    uint16_t getEdgeHue(TetrahedronProgram::Point const & a, TetrahedronProgram::Point const & b) {  // This is necessary to ensure that 2 connected vertices always maintain the same edge color
+      if ((a.id == 0 && b.id == 1) || (a.id == 1 && b.id == 0)) {return 0;}
+      if ((a.id == 0 && b.id == 2) || (a.id == 2 && b.id == 0)) {return 5000;}
+      if ((a.id == 0 && b.id == 3) || (a.id == 3 && b.id == 0)) {return 10000;}
+      if ((a.id == 1 && b.id == 2) || (a.id == 2 && b.id == 1)) {return 15000;}
+      if ((a.id == 1 && b.id == 3) || (a.id == 3 && b.id == 1)) {return 20000;}
+      if ((a.id == 2 && b.id == 3) || (a.id == 3 && b.id == 2)) {return 25000;}
+      return 0;
+    };
   public:
     TetrahedronProgram(float speed) : WS2812MatrixProgram(speed) {};
     void iterate(Adafruit_NeoMatrix &matrix, float time);
