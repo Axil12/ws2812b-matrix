@@ -1,4 +1,5 @@
 #include <math.h>
+#include <algorithm>
 #include <Adafruit_NeoMatrix.h>
 #include <stdlib.h>
 #include "ws2812_program.h"
@@ -541,7 +542,6 @@ void TetrahedronProgram::Point::rotateZ(float x, float y, float z, float a) {
 }
 
 void TetrahedronProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
-  float distance = 1.5;
   float z, projected_x, projected_y;
   float angle_x = 3.14159 * (0.5f * SimplexNoise::noise(time * this->speed * 0.20f) + 0) + 1.00 * time * this->speed;
   float angle_y = 3.14159 * (0.5f * SimplexNoise::noise(time * this->speed * 0.25f) + 0) + 1.05 * time * this->speed;
@@ -551,36 +551,44 @@ void TetrahedronProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
     this->points[i].rotateY(this->points[i].x, this->points[i].y, this->points[i].z, angle_y);
     this->points[i].rotateZ(this->points[i].x, this->points[i].y, this->points[i].z, angle_z);
 
-    z = 1 / (distance - this->points[i].z);
+    z = 1 / (this->camera_distance - this->points[i].z);
     projected_x = z * this->points[i].x;
     projected_y = z * this->points[i].y;
 
     // Scaling up the tetrahedron to fit the matrix. Because up to this point, we've worked with a tetrahedron centered on (0, 0, 0) scaled to the unit sphere.
-    projected_x *= matrix.width(); 
-    projected_y *= matrix.height();
+    projected_x *= matrix.width() * this->tetrahedron_scale; 
+    projected_y *= matrix.height() * this->tetrahedron_scale;
 
     // Moving the tetrahedron's center to the center of the matrix.
-    projected_x += matrix.width() / 2;
-    projected_y += matrix.height() / 2;
+    projected_x += matrix.width() / 2 - 0.5f;
+    projected_y += matrix.height() / 2 - 0.5f;
 
     // Now we store the projected coordinates into the Points' coordinates, just so we can reuse those for the drawing functions down below.
-    this->points[i].x = (uint8_t)projected_x;
-    this->points[i].y = (uint8_t)projected_y;
+    this->points[i].x = (uint8_t)round(projected_x);
+    this->points[i].y = (uint8_t)round(projected_y);
   }
 
   matrix.fill(0);
 
+  // We sort points based on their distance so that we can draw lines back to front to avoid a line in the back being drawn on top of line in the front, which looks inconsistent.
+  std::sort(
+    this->points,
+    this->points + 4,
+    [](TetrahedronProgram::Point const & a, TetrahedronProgram::Point const & b) -> bool {return a.z < b.z;}
+    );
+
   // Drawing lines between the points
   uint16_t hue = uint16_t(fmod(0.025 * time * this->speed, 1.0) * 65536);
-  drawLine(matrix, this->points[0].x, this->points[0].y, this->points[1].x, this->points[1].y, hue, 255, 128, false, 0);
-  drawLine(matrix, this->points[0].x, this->points[0].y, this->points[2].x, this->points[2].y, hue + 5000, 255, 128, false, 0);
-  drawLine(matrix, this->points[0].x, this->points[0].y, this->points[3].x, this->points[3].y, hue + 10000, 255, 128, false, 0);
-  drawLine(matrix, this->points[1].x, this->points[1].y, this->points[2].x, this->points[2].y, hue + 15000, 255, 128, false, 0);
-  drawLine(matrix, this->points[1].x, this->points[1].y, this->points[3].x, this->points[3].y, hue + 20000, 255, 128, false, 0);
-  drawLine(matrix, this->points[2].x, this->points[2].y, this->points[3].x, this->points[3].y, hue + 25000, 255, 128, false, 0);
+  drawLine(matrix, this->points[3].x, this->points[3].y, this->points[2].x, this->points[2].y, hue + this->getEdgeHue(this->points[3], this->points[2]), 255, 128, false, 0);
+  drawLine(matrix, this->points[3].x, this->points[3].y, this->points[1].x, this->points[1].y, hue + this->getEdgeHue(this->points[3], this->points[1]), 255, 128, false, 0);
+  drawLine(matrix, this->points[3].x, this->points[3].y, this->points[0].x, this->points[0].y, hue + this->getEdgeHue(this->points[3], this->points[0]), 255, 128, false, 0);
+  drawLine(matrix, this->points[2].x, this->points[2].y, this->points[1].x, this->points[1].y, hue + this->getEdgeHue(this->points[2], this->points[1]), 255, 128, false, 0);
+  drawLine(matrix, this->points[2].x, this->points[2].y, this->points[0].x, this->points[0].y, hue + this->getEdgeHue(this->points[2], this->points[0]), 255, 128, false, 0);
+  drawLine(matrix, this->points[1].x, this->points[1].y, this->points[0].x, this->points[0].y, hue + this->getEdgeHue(this->points[1], this->points[0]), 255, 128, false, 0);
 
   this->gaussian_blur.blur(matrix);
 
+  // Drawing corners
   for (uint8_t i = 0; i < 4; i++) {
     matrix.drawPixel((uint8_t)this->points[i].x, (uint8_t)this->points[i].y, 0xffff);
   }
