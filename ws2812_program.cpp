@@ -39,6 +39,19 @@ void RainbowPlasmaProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
   }
 }
 
+void FirePlasmaProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  uint16_t color565;
+  float hue;
+  for (int x = 0; x < matrix.width(); x++) {
+    for (int y = 0; y < matrix.height(); y++) {
+      hue = (SimplexNoise::noise(x/this->scale, y/this->scale + time * this->speed, time * this->speed) + 1.0) / 2.0;
+      //hue *= hue;
+      color565 = this->COLOR_PALETTE_565[(int)round(36 * hue)];
+      matrix.drawPixel(x, y, color565);
+    }
+  }
+}
+
 /*
 ###################################################################################################
 
@@ -450,11 +463,6 @@ void OctopusProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
 }
 
 
-float naive_lerp(float a, float b, float t)
-{
-    return a + t * (b - a);
-}
-
 void BurstsProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
   fadeToBlack(matrix, 0.25f);
 
@@ -524,7 +532,13 @@ void DnaSpiralProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
   }
 }
 
+/*
+###################################################################################################
 
+TetrahedronProgram
+
+###################################################################################################
+*/
 void TetrahedronProgram::Point::rotateX(float x, float y, float z, float a) {
   this->x = x;
   this->y = y * cos(a) - z * sin(a);
@@ -539,6 +553,37 @@ void TetrahedronProgram::Point::rotateZ(float x, float y, float z, float a) {
   this->x = x * cos(a) - y * sin(a);
   this->y = x * sin(a) + y * cos(a);
   this->z = z;
+}
+
+uint16_t TetrahedronProgram::getEdgeHue(TetrahedronProgram::Point const & a, TetrahedronProgram::Point const & b) {
+  if ((a.id == 0 && b.id == 1) || (a.id == 1 && b.id == 0)) {return 0;}
+  if ((a.id == 0 && b.id == 2) || (a.id == 2 && b.id == 0)) {return 5000;}
+  if ((a.id == 0 && b.id == 3) || (a.id == 3 && b.id == 0)) {return 10000;}
+  if ((a.id == 1 && b.id == 2) || (a.id == 2 && b.id == 1)) {return 15000;}
+  if ((a.id == 1 && b.id == 3) || (a.id == 3 && b.id == 1)) {return 20000;}
+  if ((a.id == 2 && b.id == 3) || (a.id == 3 && b.id == 2)) {return 25000;}
+  return 0;
+}
+
+float TetrahedronProgram::sign(TetrahedronProgram::Point const & p1, TetrahedronProgram::Point const & p2, TetrahedronProgram::Point const & p3) {
+  return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+}
+
+bool TetrahedronProgram::pointIsInTriangle(TetrahedronProgram::Point const & p, TetrahedronProgram::Point const & v1, TetrahedronProgram::Point const & v2, TetrahedronProgram::Point const & v3) {
+  float d1, d2, d3;
+  bool has_neg, has_pos;
+  d1 = this->sign(p, v1, v2);
+  d2 = this->sign(p, v2, v3);
+  d3 = this->sign(p, v3, v1);
+  has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+  has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+  return !(has_neg && has_pos);
+}
+
+bool TetrahedronProgram::isInBeetween(TetrahedronProgram::Point const & p, TetrahedronProgram::Point const & v1, TetrahedronProgram::Point const & v2, float epsilon) {
+  float dist1 = ((float)p.x - (float)v1.x)*((float)p.x - (float)v1.x) + ((float)p.y - (float)v1.y)*((float)p.y - (float)v1.y);
+  float dist2 = ((float)p.x - (float)v2.x)*((float)p.x - (float)v2.x) + ((float)p.y - (float)v2.y)*((float)p.y - (float)v2.y);
+  return (abs(dist1 - dist2) < epsilon);
 }
 
 void TetrahedronProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
@@ -588,13 +633,21 @@ void TetrahedronProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
 
   this->gaussian_blur.blur(matrix);
 
-  // Drawing corners
-  for (uint8_t i = 0; i < 4; i++) {
-    matrix.drawPixel((uint8_t)this->points[i].x, (uint8_t)this->points[i].y, 0xffff);
-  }
+  // Drawing the closest 3 corners
+  for (uint8_t i = 0; i < 3; i++)
+    matrix.drawPixel(this->points[i].x, this->points[i].y, 0xffff);
+  // Drawing the furthest corner, but only if it is not inside the triangle formed by the closest 3 corners.  This simulates the corner being obstructed by the drawn edges, reinforcing the impression of 3D.
+  if (!this->pointIsInTriangle(this->points[3], this->points[0], this->points[1], this->points[2]))
+    matrix.drawPixel(this->points[3].x, this->points[3].y, 0xffff);
 }
 
+/*
+###################################################################################################
 
+StretchyTetrahedronProgram
+
+###################################################################################################
+*/
 void StretchyTetrahedronProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
   matrix.fill(0);
 
