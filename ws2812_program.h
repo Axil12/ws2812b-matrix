@@ -47,6 +47,24 @@ class RainbowPlasmaProgram: public WS2812MatrixProgram {
     void iterate(Adafruit_NeoMatrix &matrix, float time);
 };
 
+class FirePlasmaProgram: public WS2812MatrixProgram {  // very similar to RainbowPlasmaProgram, but with a fiery color palette
+  private:
+    const uint16_t COLOR_PALETTE_565 [37] = {
+      0x0000, 0x1820, 0x2860, 0x4060, 0x50A0, 0x60E0, 0x70E0,
+      0x8920, 0x9960, 0xA9E0, 0xBA20, 0xC220, 0xDA60, 0xDAA0,
+      0xDAA0, 0xD2E0, 0xD2E0, 0xD321, 0xCB61, 0xCBA1, 0xCBE1,
+      0xCC22, 0xC422, 0xC462, 0xC4A3, 0xBCE3, 0xBCE3, 0xBD24,
+      0xBD24, 0xBD65, 0xB565, 0xB5A5, 0xB5A6, 0xCE6D, 0xDEF3,
+      0xEF78, 0xFFFF,
+    };
+    
+  public:
+    float scale;
+
+    FirePlasmaProgram(float speed, float scale) : WS2812MatrixProgram(speed), scale(scale) {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
 class PerlinFireProgram: public WS2812MatrixProgram {
   private:
     const uint16_t COLOR_PALETTE_565 [37] = {
@@ -313,15 +331,10 @@ class TetrahedronProgram: public WS2812MatrixProgram {
     const float camera_distance = 20.0f;
     const float tetrahedron_scale = 5.4f;
     GaussianBlur gaussian_blur = GaussianBlur(0.45f);
-    uint16_t getEdgeHue(TetrahedronProgram::Point const & a, TetrahedronProgram::Point const & b) {  // This is necessary to ensure that 2 connected vertices always maintain the same edge color
-      if ((a.id == 0 && b.id == 1) || (a.id == 1 && b.id == 0)) {return 0;}
-      if ((a.id == 0 && b.id == 2) || (a.id == 2 && b.id == 0)) {return 5000;}
-      if ((a.id == 0 && b.id == 3) || (a.id == 3 && b.id == 0)) {return 10000;}
-      if ((a.id == 1 && b.id == 2) || (a.id == 2 && b.id == 1)) {return 15000;}
-      if ((a.id == 1 && b.id == 3) || (a.id == 3 && b.id == 1)) {return 20000;}
-      if ((a.id == 2 && b.id == 3) || (a.id == 3 && b.id == 2)) {return 25000;}
-      return 0;
-    };
+    uint16_t getEdgeHue(TetrahedronProgram::Point const & a, TetrahedronProgram::Point const & b);  // This is necessary to ensure that 2 connected vertices always maintain the same edge color
+    float sign(TetrahedronProgram::Point const & p1, TetrahedronProgram::Point const & p2, TetrahedronProgram::Point const & p3);  // Taken from https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle
+    bool pointIsInTriangle(TetrahedronProgram::Point const & p, TetrahedronProgram::Point const & v1, TetrahedronProgram::Point const & v2, TetrahedronProgram::Point const & v3);
+    bool isInBeetween(TetrahedronProgram::Point const & p, TetrahedronProgram::Point const & v1, TetrahedronProgram::Point const & v2, float epsilon);
   public:
     TetrahedronProgram(float speed) : WS2812MatrixProgram(speed) {};
     void iterate(Adafruit_NeoMatrix &matrix, float time);
