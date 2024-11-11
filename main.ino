@@ -10,7 +10,7 @@
 #include "config_save.h"
 //#include "MemoryFree.h"
 
-#define NUMBER_OF_PROGRAMS 20
+#define NUMBER_OF_PROGRAMS 22
 #define FRAMERATE 31  // Frames per second
 #define HEIGHT 16
 #define WIDTH 16
@@ -52,7 +52,9 @@ SpectralProgram spectral_prog = SpectralProgram(0.025);
 RainbowWaveProgram rainbow_wave_prog = RainbowWaveProgram(0.2, 1);
 RainbowPlasmaProgram rainbow_plasma_prog = RainbowPlasmaProgram(.125, 15);
 FirePlasmaProgram fire_plasma_prog = FirePlasmaProgram(.125, 15);
+SpectralFirePlasmaProgram spectral_fire_plasma_prog = SpectralFirePlasmaProgram(.125, 15);
 PerlinFireProgram perlin_fire_prog = PerlinFireProgram(.5, 15, matrix.width(), matrix.height(), 3.5, 5);
+SpectralPerlinFireProgram spectral_perlin_fire_prog = SpectralPerlinFireProgram(.5, 15, matrix.width(), matrix.height(), 3.5, 5);
 FallingSandProgram falling_sand_prog = FallingSandProgram(1/3.0f, matrix.width(), matrix.height());
 LavaLampProgram lava_lamp_prog = LavaLampProgram(0.15, matrix.width(), matrix.height(), 11, 125);
 MatrixEffectProgram matrix_effect_prog = MatrixEffectProgram(1, matrix.width(), matrix.height());
@@ -87,17 +89,19 @@ void setup() {
   programs[6] = &rainbow_wave_prog;
   programs[7] = &rainbow_plasma_prog;
   programs[8] = &fire_plasma_prog;
-  programs[9] = &perlin_fire_prog;
-  programs[10] = &falling_sand_prog;
-  programs[11] = &lava_lamp_prog;
-  programs[12] = &matrix_effect_prog;
-  programs[13] = &vortex_program;
-  programs[14] = &rotating_kaleidoscope_prog;
-  programs[15] = &octopus_prog;
-  programs[16] = &bursts_prog;
-  programs[17] = &lissajous_prog;
-  programs[18] = &dna_spiral_prog;
-  programs[19] = &tetrahedron_prog;
+  programs[9] = &spectral_fire_plasma_prog;
+  programs[10] = &perlin_fire_prog;
+  programs[11] = &spectral_perlin_fire_prog;
+  programs[12] = &falling_sand_prog;
+  programs[13] = &lava_lamp_prog;
+  programs[14] = &matrix_effect_prog;
+  programs[15] = &vortex_program;
+  programs[16] = &rotating_kaleidoscope_prog;
+  programs[17] = &octopus_prog;
+  programs[18] = &bursts_prog;
+  programs[19] = &lissajous_prog;
+  programs[20] = &dna_spiral_prog;
+  programs[21] = &tetrahedron_prog;
   
 
   AppConfig* config = loadConfig();
