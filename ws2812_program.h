@@ -65,6 +65,24 @@ class FirePlasmaProgram: public WS2812MatrixProgram {  // very similar to Rainbo
     void iterate(Adafruit_NeoMatrix &matrix, float time);
 };
 
+class SpectralFirePlasmaProgram: public WS2812MatrixProgram {  // very similar to RainbowPlasmaProgram, but with a fiery color palette
+  private:
+    const uint32_t COLOR_PALETTE_HSV [37] = {
+      0x000000, 0x07ff18, 0x0cff28, 0x07ff40, 0x0aff50, 0x0cff60, 0x0aff70,
+      0x0bff88, 0x0cff98, 0x0fffa8, 0x0fffb8, 0x0fffc0, 0x0effd8, 0x10ffd8,
+      0x10ffd8, 0x12ffd0, 0x12ffd0, 0x13f5d0, 0x16f4c8, 0x17f4c8, 0x19f4c8,
+      0x1aeac8, 0x1ce9c0, 0x1de9c0, 0x1fdfc0, 0x23ddb8, 0x23ddb8, 0x24d2b8,
+      0x24d2b8, 0x26c7b8, 0x29c5b0, 0x2bc6b4, 0x2bbbb4, 0x2c7dcc, 0x2d4edc,
+      0x2e2fec, 0x5504fc
+    };
+    
+  public:
+    float scale;
+
+    SpectralFirePlasmaProgram(float speed, float scale) : WS2812MatrixProgram(speed), scale(scale) {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
 class PerlinFireProgram: public WS2812MatrixProgram {
   private:
     const uint16_t COLOR_PALETTE_565 [37] = {
@@ -76,6 +94,7 @@ class PerlinFireProgram: public WS2812MatrixProgram {
       0xEF78, 0xFFFF,
     };
 
+  protected:
     class ValueMap {
       private:
           const int w;
@@ -113,6 +132,31 @@ class PerlinFireProgram: public WS2812MatrixProgram {
       cooling_map(width, height),
       heat_map_prev(width, height)
       {};
+    void iterate(Adafruit_NeoMatrix &matrix, float time);
+};
+
+class SpectralPerlinFireProgram: public PerlinFireProgram {
+  private:
+    /*const uint32_t COLOR_PALETTE_HSV [37] = {
+      0x0bff00, 0x0cff29, 0x0dff3b, 0x0dff48, 0x0eff53, 0x0fff5d, 0x10ff66,
+      0x10ff6e, 0x11ff76, 0x12ff7d, 0x12ff84, 0x13ff8b, 0x13ff91, 0x14ff97,
+      0x14ff9c, 0x15ffa2, 0x15ffa7, 0x15f9ac, 0x15f1b1, 0x15e9b6, 0x15e2bb,
+      0x15dbc0, 0x15d5c4, 0x14cfc9, 0x14c9cd, 0x14c3d1, 0x14bed5, 0x14b8d9,
+      0x14b3dd, 0x14afe1, 0x14aae5, 0x14a5e9, 0x13a1ed, 0x139df0, 0x1399f4,
+      0x1394f8, 0x1391fb,
+    };*/
+    const uint32_t COLOR_PALETTE_HSV [37] = {
+      0x000000, 0x07ff18, 0x0cff28, 0x07ff40, 0x0aff50, 0x0cff60, 0x0aff70,
+      0x0bff88, 0x0cff98, 0x0fffa8, 0x0fffb8, 0x0fffc0, 0x0effd8, 0x10ffd8,
+      0x10ffd8, 0x12ffd0, 0x12ffd0, 0x13f5d0, 0x16f4c8, 0x17f4c8, 0x19f4c8,
+      0x1aeac8, 0x1ce9c0, 0x1de9c0, 0x1fdfc0, 0x23ddb8, 0x23ddb8, 0x24d2b8,
+      0x24d2b8, 0x26c7b8, 0x29c5b0, 0x2bc6b4, 0x2bbbb4, 0x2c7dcc, 0x2d4edc,
+      0x2e2fec, 0x5504fc
+    };
+
+  public: 
+    SpectralPerlinFireProgram(float speed, float scale, int width, int height, float flame_height, int octaves) : 
+      PerlinFireProgram(speed, scale, width, height, flame_height, octaves) {};
     void iterate(Adafruit_NeoMatrix &matrix, float time);
 };
 
