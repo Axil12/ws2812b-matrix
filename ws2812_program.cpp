@@ -52,6 +52,23 @@ void FirePlasmaProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
   }
 }
 
+void SpectralFirePlasmaProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  uint32_t color_hsv;
+  uint8_t h, s, v;
+  float value;
+  for (int x = 0; x < matrix.width(); x++) {
+    for (int y = 0; y < matrix.height(); y++) {
+      value = (SimplexNoise::noise(x/this->scale, y/this->scale + time * this->speed, time * this->speed) + 1.0) / 2.0;
+      //value *= value;
+      color_hsv = this->COLOR_PALETTE_HSV[(int)round(36 * value)];
+      h = ((color_hsv >> 16) & 0x0000ff);
+      s = ((color_hsv >> 8) & 0x0000ff);
+      v = (color_hsv & 0x0000ff);
+      h = (uint8_t)((h/255.0 + time * .03 * this->speed) * 255) % 255;
+      matrix.drawPixel(x, y, ColorHSV(uint16_t(h * 255), s, v));
+    }
+  }
+}
 /*
 ###################################################################################################
 
@@ -124,6 +141,55 @@ void PerlinFireProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
   this->cycles += 1;
 }
 
+
+/*
+###################################################################################################
+
+Spectral Perlin Fire
+
+###################################################################################################
+*/
+
+void SpectralPerlinFireProgram::iterate(Adafruit_NeoMatrix &matrix, float time) {
+  float periodicity = 1.0f / this->speed;
+  if (this->cycles >= periodicity || this->cycles == 0) {  // Update the heat map
+    this->applyConvection();  // Maybe act here to reduce speed
+    this->createFireSource();
+    this->updateCoolingMap(time * this->speed);
+
+    for (int y = 0; y < this->h; y++){ // First, we store heat map
+        for (int x = 0; x < this->w; x++){
+          this->heat_map_prev.value_map[y][x] = this->heat_map.value_map[y][x];
+        }
+      }
+    for (int y = 0; y < this->h; y++){ // Then we update it
+      for (int x = 0; x < this->w; x++){
+        this->heat_map.value_map[y][x] -= this->cooling_map.value_map[y][x] / this->flame_height;
+        this->heat_map.value_map[y][x] = max(0, this->heat_map.value_map[y][x]);
+      }
+    }
+
+    this->cycles = 0;
+  }
+
+  float alpha = this->cycles / periodicity;
+  float heat_val;
+  uint16_t color_hsv;
+  uint8_t h, s, v;
+  for (int y = 0; y < this->h; y++){
+    for (int x = 0; x < this->w; x++){
+      heat_val = (0.5f * this->heat_map_prev.value_map[y][x] + 0.5f * this->heat_map.value_map[y][x]);
+      color_hsv = this->COLOR_PALETTE_HSV[(int)round(36 * heat_val)];
+      h = ((color_hsv >> 16) & 0x0000ff);
+      s = ((color_hsv >> 8) & 0x0000ff);
+      v = (color_hsv & 0x0000ff);
+      h = (uint8_t)((h/255.0 + time * .03 * this->speed) * 255) % 255;
+      matrix.drawPixel(x, y, ColorHSV(uint16_t(h * 255), s, v));
+    }
+  }
+
+  this->cycles += 1;
+}
 
 /*
 ###################################################################################################
